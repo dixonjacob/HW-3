@@ -1,6 +1,6 @@
 ---
 title: "MATH 216 Homework 3"
-author: "WRITE YOUR NAME HERE"
+author: "Jacob Dixon"
 output: html_document
 ---
 
@@ -9,6 +9,13 @@ suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(Quandl))
+suppressPackageStartupMessages(library(tidyr))
+suppressPackageStartupMessages(library(foreign))
+suppressPackageStartupMessages(library(ggthemes))
+suppressPackageStartupMessages(library(pander))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(DT))
 ```
 
 
@@ -16,9 +23,9 @@ suppressPackageStartupMessages(library(Quandl))
 
 Please indicate
 
-* Who you collaborated with:
-* Roughly how much time you spent on this HW:
-* What gave you the most trouble:
+* Who you collaborated with: Alison Cook
+* Roughly how much time you spent on this HW: 7h
+* What gave you the most trouble: Troubleshooting errors. Still getting an error in the model creation. 
 * Any comments you have: 
 
 
@@ -49,10 +56,45 @@ specifically the OkCupid dataset.
 
 ### a)
 
-Using your exploratory data analysis from HW-2, fit a logistic regression to
-predict individual's gender and interpret your results.
+Using your exploratory data analysis from HW-2, fit a logistic regression to 
+predict individual's gender and interpret the results for one continuous variable 
+(if you used one) and one categorical variable of your choice.
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
+
+#let's get this set up so I can do that, though my exploratory analysis did not include
+#any continuous variables, I will use height so that I can have one here. 
+
+#Seperate out the essays 
+essays <- select(profiles, contains("essay"))
+profiles <- select(profiles, -contains("essay"))
+
+#add a binary column for females
+profiles <- mutate(profiles, is_female = ifelse(sex=="f", 1, 0))
+
+#Filter out the ones that do not identify, since that is what we are interested in
+profiles <- filter(profiles, sex != "")
+
+#Searching for words functions, first finding it, then returning found word 
+find_query <- function(char.vector, query){
+  which.has.query <- grep(query, char.vector, ignore.case = TRUE)
+  length(which.has.query) != 0
+}
+profile_has_word <- function(data.frame, query){
+  query <- tolower(query)
+  has.query <- apply(data.frame, 1, find_query, query=query)
+  return(has.query)
+}
+
+#Add a column with results for the word "baking" 
+profiles$has_bake <- profile_has_word(data.frame = essays, query = "baking")
+
+
+#Create a linear model that uses bake and heights to identify females
+model1 <- glm(is_female ~ has_bake + height , data=profiles, family=binomial)
+summary(model1)
+
+#use bayesian? Hmm. The 0 or 1 error seems unsettling. 
 
 ```
 
@@ -63,6 +105,17 @@ Plot a histogram of the fitted probabilities $\widehat{p}_i$ for all users $i=1,
 \ldots, n=59946$ in your dataset.
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
+
+#Create the fitted values 
+fitted_values <- fitted(model1)
+
+#Plot it, add a line at 50%, make the colors better
+ggplot(data = NULL, aes(x=fitted_values))+
+  theme_tufte()+
+  geom_vline(xintercept = 0.5, color = "red")+
+  geom_histogram(binwidth = 0.2, col = "blue", fill = "orange", alpha = 0.2)+
+  labs(title = "Gender Distribution Based on Model", 
+       x = "   <- probability of male      probability of female ->", y = "Number of Individuals")
 
 ```
 
@@ -111,6 +164,58 @@ What seasonal (i.e. cyclical) patterns do you observe?
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
+#Separate out the combined date and time stamp 
+jukebox <- jukebox %>% 
+  mutate(formatted_date = parse_date_time(date_time, "%b %d %H%M%S %Y"))
+
+#Do some more separating
+jukebox <- jukebox %>% separate(formatted_date, c("Date", "Time"), sep = " ")
+
+#Create a week column 
+jukebox <- jukebox %>% mutate(week = week(Date))
+
+#Create a year column
+jukebox <- jukebox %>% mutate(year = year(Date))
+
+#Because there are repeat weeks, i.e. week 48 happens each year, group by those
+songs_per_week <- jukebox  %>% group_by(year, week)  %>% tally() 
+
+#Add date back on to that bad boy 
+songs_per_week$date <- as.Date(paste(songs_per_week$year, 
+                                     songs_per_week$week, 1, sep="-"), "%Y-%U-%u")
+
+#Plot that and see how it looks -> It looks like the middle of years has less, 
+#makes sense, they won't be playing as many songs during the summer 
+ggplot(data = songs_per_week, aes(x = date, y = n)) +
+  theme_tufte()+
+  geom_point()+
+  labs(title = "Songs Played Throughout the Years", x = "Year", y = "Number of Songs Played")
+
+#I want to just see the month, so select out that and the number of songs 
+songs_per_week <- songs_per_week %>% mutate(month = month(date)) %>% select(month, n)
+
+#Associate months with seasons 
+winter <- c(12, 1, 2)
+spring <- c(3, 4, 5)
+summer <- c(6, 7, 8)
+autumn <- c(9, 10, 11)
+
+#Put those months into the previously created seasons
+songs_by_season <- songs_per_week %>% 
+  mutate(season = ifelse(month %in% winter, 'winter', 
+                         ifelse(month %in% spring, 'spring', 
+                                ifelse(month %in% summer, 'summer', 
+                                       ifelse(month %in% autumn, 'autumn', NA)))))
+
+
+#Now we can take a look at the songs and the different seasons
+ggplot(data = songs_by_season, aes(x = season, y = n, colour = season)) +
+  theme_tufte()+
+  geom_boxplot()+
+  guides(colour = "none")+
+  labs(title = "Seasonal Song Variation", x = "Season", y = "Number of Songs Played")
+
+
 ```
 
 
@@ -126,6 +231,25 @@ shift" during the academic year? Define
 * the academic year as September through May (inclusive)
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
+
+#Add month to this
+jukebox <- jukebox %>% mutate(month = month(Date))
+
+#These are the acaemic months of the year
+academic <- c(9, 10, 11, 12, 1, 2, 3, 4, 5)
+
+#Group songs into the appropriate time of the year 
+academic_songs <- jukebox %>% 
+  mutate(academic = ifelse(month %in% academic, 'academic', 'break')) %>% 
+  filter(academic == "academic")
+
+#limit it to only graveyard times 
+academic_songs <- academic_songs %>% filter(Time >= "00:00:00", Time <= "08:00:00")
+
+#Now count the plays per artist, pick the top ten, make a table 
+academic_songs %>% group_by(artist) %>% 
+  tally() %>% arrange(desc(n)) %>% slice(1:10) %>% kable()
+
 
 ```
 
@@ -145,6 +269,30 @@ Let the reference currency be US dollars. Analyze these results and provide
 insight to a foreign currency exchanger.
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
+
+#Bring in the bitcoin data
+bitcoin <- Quandl("BAVERAGE/USD") %>% tbl_df()
+
+#Bring in the gold/USD data 
+gold <- Quandl("WGC/GOLD_DAILY_USD") %>% tbl_df
+
+
+# We rename the variables so that they don't have spaces. You do that as follows
+# using ` marks (next to the "1" key):
+bitcoin <- rename(bitcoin, Avg = `24h Average`, Total.Volume = `Total Volume`)
+
+#Parsing the date out, probably not necessary
+bitcoin <- mutate(bitcoin, pars_date = ymd(Date))
+
+#Join the two so I can graph them 
+bit_gold <- left_join(bitcoin, gold, by = "Date")
+
+#Graph em up! 
+ggplot(data = bit_gold, aes(x = Date))+
+  theme_tufte()+
+  geom_line(aes(x = Date, y = Avg), colour = "gold")+
+  geom_line(aes(x = Date, y = Value), colour = "orange")+
+  labs(title = "Gold v. Bitcoin", x = "Date", y = "Price (USD)")
 
 ```
 
