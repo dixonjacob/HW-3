@@ -14,8 +14,6 @@ suppressPackageStartupMessages(library(foreign))
 suppressPackageStartupMessages(library(ggthemes))
 suppressPackageStartupMessages(library(pander))
 suppressPackageStartupMessages(library(knitr))
-suppressPackageStartupMessages(library(stringr))
-suppressPackageStartupMessages(library(DT))
 ```
 
 
@@ -23,9 +21,9 @@ suppressPackageStartupMessages(library(DT))
 
 Please indicate
 
-* Who you collaborated with: Alison Cook
-* Roughly how much time you spent on this HW: 7h
-* What gave you the most trouble: Troubleshooting errors. Still getting an error in the model creation. 
+* Who you collaborated with: Alison Cook, Andrew Holtz
+* Roughly how much time you spent on this HW: 12h
+* What gave you the most trouble: Trying to do little things, like working with an "unknown" column. Spent way too much time on that. 
 * Any comments you have: 
 
 
@@ -94,9 +92,10 @@ profiles$has_bake <- profile_has_word(data.frame = essays, query = "baking")
 model1 <- glm(is_female ~ has_bake + height , data=profiles, family=binomial)
 summary(model1)
 
-#use bayesian? Hmm. The 0 or 1 error seems unsettling. 
 
 ```
+
+The summary above is the output from a model fit to height data and whether or not a user has the word "bake" in one of their essays. The key part to focus on is under "estimate" for has_bake and for height. The values here represent amounts by which the log odds of model1 would increase if height or having the word bake were to increase by 1 unit. 
 
 
 ### b)
@@ -115,10 +114,12 @@ ggplot(data = NULL, aes(x=fitted_values))+
   geom_vline(xintercept = 0.5, color = "red")+
   geom_histogram(binwidth = 0.2, col = "blue", fill = "orange", alpha = 0.2)+
   labs(title = "Gender Distribution Based on Model", 
-       x = "   <- probability of male      probability of female ->", y = "Number of Individuals")
+       x = "    <- more likely to be male      more likely to be female ->", 
+       y = "Number of Individuals")
 
 ```
 
+The histogram above shows what the model would predict the gender of a user to be, binned by the likelihood of being male "0" or female "1".  
 
 ### c)
 
@@ -134,8 +135,21 @@ your table should be $n=59946$. Comment on how well our predictions fared.
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
+#Do the prediction
+gender_probability = predict(model1, profiles, type="response")
+gender_predict = rep(1, dim(profiles)[1])
+gender_predict[gender_probability > 0.5] = 1
+
+#Create output table
+threshold_table <- table(gender_predict, profiles$is_female)
+sum(threshold_table)
+kable(threshold_table)
+
+#Is this 2x2? I don't think so. Having trouble figuring this out
+
 ```
 
+The table above shows the number of individuals that the model would predict as male "O" or female "1". It has a decision threshold, shown in red in part B, of 0.5. 
 
 ### d)
 
@@ -145,6 +159,7 @@ decision threshold $p^*$ should we use?
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
+#Don't understand this. 
 ```
 
 
@@ -188,8 +203,10 @@ songs_per_week$date <- as.Date(paste(songs_per_week$year,
 #makes sense, they won't be playing as many songs during the summer 
 ggplot(data = songs_per_week, aes(x = date, y = n)) +
   theme_tufte()+
-  geom_point()+
-  labs(title = "Songs Played Throughout the Years", x = "Year", y = "Number of Songs Played")
+  geom_area()+
+  labs(title = "Songs Played Throughout the Years", x = "Year",
+       y = "Number of Songs Played")
+
 
 #I want to just see the month, so select out that and the number of songs 
 songs_per_week <- songs_per_week %>% mutate(month = month(date)) %>% select(month, n)
@@ -218,7 +235,7 @@ ggplot(data = songs_by_season, aes(x = season, y = n, colour = season)) +
 
 ```
 
-
+The figures above show the number of songs played over several years on a jukebox. The first figure shows the total songs played throughout the years, and the second shows a more specific seasonal variation. While the first figure does demonstrate the dramatic changes in songs played, the second one more clearly shows how different parts of the school year are correlated with different amounts of songs played. The second figure also allows for the more specific comparison of seasons, rather than the overall pattern of school-year vs. non-school-year in the first figure. 
 
 
 
@@ -253,7 +270,7 @@ academic_songs %>% group_by(artist) %>%
 
 ```
 
-
+The table above shows the top 10 artists played during the “graveyard shift” during the academic year. 
 
 
 
@@ -287,18 +304,30 @@ bitcoin <- mutate(bitcoin, pars_date = ymd(Date))
 #Join the two so I can graph them 
 bit_gold <- left_join(bitcoin, gold, by = "Date")
 
-#Graph em up! 
-ggplot(data = bit_gold, aes(x = Date))+
+
+#Have to only select starting the second day to get daily difference
+daily_change <- as.data.frame(bit_gold$Date[2:2076])
+
+#daily difference for bitcoin
+daily_change$bitcoin <- diff(bit_gold$Avg)
+
+#daily difference for gold 
+daily_change$gold <- diff(bit_gold$Value)
+
+
+#Graph it! I cannot figure out how to add a legend to this though...guides() and what not are not
+#are not adding anything
+ggplot(data = daily_change, aes(x = daily_change[[1]]))+
   theme_tufte()+
-  geom_line(aes(x = Date, y = Avg), colour = "gold")+
-  geom_line(aes(x = Date, y = Value), colour = "orange")+
+  geom_line(aes(x = daily_change[[1]], y = gold), colour = "gold")+
+  geom_line(aes(x = daily_change[[1]], y = bitcoin), colour = "orange")+
   labs(title = "Gold v. Bitcoin", x = "Date", y = "Price (USD)")
+
 
 ```
 
 
-
-
+The figure above shows the change in average daily price of bitcoin and gold. The bitcoin is shown in orange, and the gold is shown in gold (...some call it yellow). By looking at the amplitude of the peaks, one can see that bitcoin varies much more than gold does. If I were to look for something to exchange my foreign currency for, the safe bet looks like it would be gold. There is a chance that I could make a lot of money by switching to bitcoin at the right time, but gold tends to be more stable over time. 
 
 ## Question 5:
 
