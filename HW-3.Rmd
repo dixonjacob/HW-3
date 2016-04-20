@@ -22,8 +22,8 @@ suppressPackageStartupMessages(library(knitr))
 Please indicate
 
 * Who you collaborated with: Alison Cook, Andrew Holtz
-* Roughly how much time you spent on this HW: 12h
-* What gave you the most trouble: Trying to do little things, like working with an "unknown" column. Spent way too much time on that. 
+* Roughly how much time you spent on this HW: 14h
+* What gave you the most trouble: Had to ask for a lot of help creating a loop for the bitcoin question, as that seemed like the best way to answer it - out of my knowledge zone though. spending a lot of time on these assignments. 
 * Any comments you have: 
 
 
@@ -95,7 +95,7 @@ summary(model1)
 
 ```
 
-The summary above is the output from a model fit to height data and whether or not a user has the word "bake" in one of their essays. The key part to focus on is under "estimate" for has_bake and for height. The values here represent amounts by which the log odds of model1 would increase if height or having the word bake were to increase by 1 unit. 
+The summary above is the output from a model fit to height data and whether or not a user has the word "bake" in one of their essays. The key part to focus on is under "estimate" for has_bake and for height. The values here represent to associated increases in the log odds of being female given increases of 1 inch in height and going from not having to having the word 'bake' in their essay profile.  
 
 
 ### b)
@@ -136,7 +136,7 @@ your table should be $n=59946$. Comment on how well our predictions fared.
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
 
 #Do the prediction
-gender_probability = predict(model1, profiles, type="response")
+gender_probability = fitted(model1, profiles, type="response")
 gender_predict = rep(1, dim(profiles)[1])
 gender_predict[gender_probability > 0.5] = 1
 
@@ -145,7 +145,7 @@ threshold_table <- table(gender_predict, profiles$is_female)
 sum(threshold_table)
 kable(threshold_table)
 
-#Is this 2x2? I don't think so. Having trouble figuring this out
+#Even with fitted, as you suggested, I am not able to get this to come out right
 
 ```
 
@@ -305,42 +305,40 @@ bitcoin <- mutate(bitcoin, pars_date = ymd(Date))
 bit_gold <- left_join(bitcoin, gold, by = "Date")
 
 
-#Have to only select starting the second day to get daily difference
-daily_change <- as.data.frame(bit_gold$Date[2:2076])
+#Calculate the dail difference in bitcoin and gold. Use (today_price - yesterday_price)
+#/yesterday_price * 100. 
+bitcoin_diff <- c()
+for(i in 2:length(bit_gold$Date)) {
+  bitcoin_diff[i-1] <- ((bit_gold$Avg[i] - bit_gold$Avg[i-1])/bit_gold$Avg[i-1])*100
+}
 
-#daily difference for bitcoin
-daily_change$bitcoin <- diff(bit_gold$Avg)
+bitcoin_diff <- as.data.frame(bitcoin_diff)
+bitcoin_diff <- mutate(bitcoin_diff, Date = bit_gold$Date[-1])
 
-#daily difference for gold 
-daily_change$gold <- diff(bit_gold$Value)
+gold_diff <- c()
+for(i in 2:length(bit_gold$Date)) {
+  gold_diff[i-1] <- ((bit_gold$Value[i] - bit_gold$Value[i-1])/bit_gold$Value[i-1])*100
+}
+
+gold_diff <- as.data.frame(gold_diff)
+gold_diff <- mutate(gold_diff, Date = bit_gold$Date[-1])
+
+#Join and create a table of difference in bitcoin and difference in gold for each day
+currency_diff <- left_join(bitcoin_diff, gold_diff, by = "Date")
+currency_diff <- currency_diff[,c(2,1,3)]
+currency_diff <- gather(currency_diff, "currency", "diff", 2:3)
 
 
-#Graph it! I cannot figure out how to add a legend to this though...guides() and what not are not
-#are not adding anything
-ggplot(data = daily_change, aes(x = daily_change[[1]]))+
+#Graph those changes over time 
+ggplot(data = currency_diff, aes(x = Date, y = diff, fill = currency)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Gold v. Bitcoin", x = "Date",
+       y = "Change in USD per day") +
   theme_tufte()+
-  geom_line(aes(x = daily_change[[1]], y = gold), colour = "gold")+
-  geom_line(aes(x = daily_change[[1]], y = bitcoin), colour = "orange")+
-  labs(title = "Gold v. Bitcoin", x = "Date", y = "Price (USD)")
+  scale_fill_discrete(name = "Currency", labels = c("Bitcoin", "Gold"))
 
 
 ```
 
 
-The figure above shows the change in average daily price of bitcoin and gold. The bitcoin is shown in orange, and the gold is shown in gold (...some call it yellow). By looking at the amplitude of the peaks, one can see that bitcoin varies much more than gold does. If I were to look for something to exchange my foreign currency for, the safe bet looks like it would be gold. There is a chance that I could make a lot of money by switching to bitcoin at the right time, but gold tends to be more stable over time. 
-
-## Question 5:
-
-Using the data loaded from Quandl below, plot a time series using `geom_line()`
-comparing cheese and milk production in the US from 1930 to today. Comment on this.
-
-* Cheese [page](https://www.quandl.com/data/USDANASS/NASS_CHEESEPRODUCTIONMEASUREDINLB-Cheese-Production-Measured-In-Lb)
-* Milk [page](https://www.quandl.com/data/USDANASS/NASS_MILKPRODUCTIONMEASUREDINLB-Milk-Production-Measured-In-Lb)
-
-```{r, echo=FALSE, fig.width=12, fig.height=6}
-cheese <- Quandl("USDANASS/NASS_CHEESEPRODUCTIONMEASUREDINLB") %>% 
-  tbl_df()
-milk <-  Quandl("USDANASS/NASS_MILKPRODUCTIONMEASUREDINLB") %>% 
-  tbl_df()
-```
-
+The figure above shows the change in average daily price of bitcoin and gold. By looking at the amplitude of the peaks, one can see that bitcoin varies much more than gold does. If I were to look for something to exchange my foreign currency for, the safe bet looks like it would be gold. There is a chance that I could make a lot of money by switching to bitcoin at the right time, but gold tends to be more stable over time. 
